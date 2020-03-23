@@ -1,0 +1,143 @@
+---
+title: 'Lab #4'
+author: "Kobe Pranivong; illimunobe | Yi Hang Khor; bobbykhor"
+date: "3/22/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(readxl)
+library(ggplot2)
+library(dplyr)
+library(magrittr)
+library(tidyr)
+```
+
+### Part One: Cleaning Data
+
+```{r}
+# Load the data
+defense <- read_excel('cyclonesFootball2019.xlsx', sheet = 'Defensive')
+offense <- read_excel('cyclonesFootball2019.xlsx', sheet = 'Offensive')
+biography <- read_excel('cyclonesFootball2019.xlsx', sheet = 'Biography')
+
+# 1. The player names and opponents names are factors.
+defense$Name %<>% factor
+defense$Opponent_Opponent %<>% factor
+
+offense$Name %<>% factor
+offense$Opponent_Opponent %<>% factor
+
+# 2. All offensive and defensive statistics are numerical. The Weight column in biogrpahy is also numeric. (Hint: look at ?mutate_at if you want to save writing some code).
+newCols = c('Tackles_Solo', 'Tackles_ASST',  'Tackles_TFL', 'Tackles_Sack',  'Turnover_FF',   'Turnover_FR', 'Turnover_INT', 'Pass_QBH','Pass_PB')
+defense[, newCols] %<>% lapply(function(x) as.numeric(as.character(x)))
+defClean = defense
+
+newCols1 = c('Rushing_ATT', 'Rushing_YDS', 'Rushing_TD','Receiving_REC',  'Receiving_YDS','Receiving_TD', 'Passing_CMP-ATT', 'Passing_YDS', 'Passing_TD', 'Passing_INT')
+offense[, newCols1] %<>% lapply(function(x) as.numeric(as.character(x)))
+offClean = offense
+
+# 3. Change the Height column in biography into numeric. (Hint: Use a unit that works well)
+biography$Name %<>% factor
+biography$Position %<>% factor
+biography[["Height"]] <- gsub('-', '.', biography$Height) 
+newCols2 = c('Weight', 'Height')
+biography[, newCols2] %<>% lapply(function(x) as.numeric(as.character(x)))
+bioClean = biography
+
+# Print the structures of defClean, offClean, bioClean.
+head(defClean)
+head(offClean)
+head(bioClean)
+```
+
+### Part Two: Tidying (1)
+
+1. Reformat the defClean data frame into a tidy format using pivot_longer. The type of statistic (Tackles_Solo, Tackles_ASST, etc) is added as a new key column named Statistic.
+```{r}
+defClean_pivot <- defClean %>%
+  pivot_longer(Tackles_Solo:Pass_PB,names_to = "Statistic", values_to = "Number")
+
+```
+
+2. Create a histogram for each defensive statistic. Use facet_wrap to draw all histograms in a single plot. What defensive skills are rare?
+```{r}
+ggplot(data = defClean_pivot, aes(x = Number)) + facet_wrap(~Statistic) + geom_histogram() + stat_bin(bins = 10)
+```
+
+Based on all of the histograms of the various defensive statistics we can see that very few players have at least 1 Turnover_FF, Turnover_FR and Turnover_INT; therefore, these are the rarest defensive skills.
+
+3. Did ISU have better defense against West Virginia or Kansas State? Answer this question by creating a scatterplot with x-axis being the number of solo tackles (by each player) against West Virginia, and y-axis being that against Kansas State. A large number of solo tackles indicates good defense.
+```{r}
+df <- defClean_pivot
+# Subset the data frame
+df_virginia <- subset(df, ((Opponent_Opponent == "West Virginia") & (Statistic == "Tackles_Solo")) , select = c("Name", "Opponent_Opponent", "Number"))
+df_kansas <- subset(df, ((Opponent_Opponent == "Kansas State") & (Statistic == "Tackles_Solo")) , select = c("Name", "Opponent_Opponent", "Number"))
+df_new <- subset(df, ((Opponent_Opponent == "West Virginia") & (Statistic == "Tackles_Solo")) | ((Opponent_Opponent == "Kansas State") & (Statistic == "Tackles_Solo")) , select = c("Name", "Opponent_Opponent", "Number"))
+# Keep the names that are in both data frames
+keep <- intersect(df_virginia$Name, df_kansas$Name)
+df_virginia <- df_virginia[df_virginia$Name %in% keep, ]
+df_kansas <- df_kansas[df_kansas$Name %in% keep, ]
+# Check if lengths are equal. 
+# length(df_ks) == length(df_wv)
+# Plot West Virginia in the x-axis and Kansas in the y-axis
+plot(df_virginia$Number, df_kansas$Number, main="Kansas State vs. West Virginia Solo Tackles",
+   xlab = "West Virginia Solo Tackles", ylab = "Kansas State Solo Tackles", pch = 19)
+```
+
+From the scatterplot, we can conclude that ISU had better defense against Kansas State than West Virginia. The majority of the points for the y-axis are above 2 while the the majority of the points for the x-axis are below 2. From this data, we can interpret that the West Virginia team has a better offense.
+
+### Part Two: Tidying(2)
+1. Separate the Hometown column into two columns, namely the city and the state. Print the first few rows of these two columns. (Hint: look at the sep = argument of separate)
+```{r}
+bioClean_tidy <- bioClean %>%
+  separate('Hometown', c("Home_City", "Home_State"), sep = ", (?=[^ ]+$)")
+bioClean_tidy %>% head(5)
+```
+
+2. How many players are there from each state?
+```{r}
+bioClean_tidy %>%
+  group_by(Home_State) %>%
+  summarize(Count = n())
+```
+
+### Part Three: Joining Data Frames
+1. Find where do the offensive players come from by joining the offensive data and player biography data appropriately.
+```{r}
+unique_offense = unique(offClean$Name)
+offensive_bio <- bioClean_tidy[bioClean_tidy$Name %in% unique_offense, ]
+offensive_bio <- subset(offensive_bio, select = c("Name","Home_City", "Home_State", "Highschool"))
+offensive_bio
+```
+
+2. Is there a relationship between the weight of a player and the receiving yards (Receiving_YDS)?
+```{r}
+correlation = inner_join(bioClean, offClean, by = "Name") %>% 
+  select(Name, Weight, Receiving_YDS) %>% 
+  group_by(Name) %>% 
+  mutate(mean_yds = mean(Receiving_YDS))
+# Plotting the data
+ggplot(distinct(correlation, Name, .keep_all=TRUE), aes(x = Weight, y = mean_yds, color = Name)) + ylab("Offensive Yards") +
+  geom_point(data = correlation, aes(x = Weight, y = Receiving_YDS), show.legend = TRUE, inherit.aes = FALSE) + geom_point(size = 7)
+```
+
+There seems to be a small correlation between the weight of a player and the receiving yards. There is a dip in our non-mean points around the player weight of 170-180 lbs. Additionally, there are outliers at the player weights >275 lbs.
+
+3. How do the performance of quarterback Brock Purdy relate to the performance of the ISU team?
+```{r}
+brock <- offClean
+brock <- subset(brock, (brock$Name == "Purdy, Brock"), select = c("Name","Opponent_Opponent",  "Passing_YDS", "Passing_TD", "Passing_INT"))
+isu_record <- c("W","L","W","L","W","W","W","L","L","W","W","L","L") 
+brock$Team_Record=isu_record
+ggplot(brock, aes(x = Team_Record, y = Passing_YDS)) + geom_boxplot() + labs(title = "Brock Purdy 2019", x = "Win or Lose", y = "Passing Yards")
+ggplot(brock, aes(x = Team_Record, y = Passing_TD)) + geom_boxplot() + labs(title = "Brock Purdy 2019", x = "Win or Lose", y = "Passing Touchdowns")
+```
+
+Since Brock Purdy is a quarterback, a player that typically holds the ball for the longest time, if his performance is good, then his team has a better chance of victory. Based on the boxplots that compared the passing yards and passing touchdowns of Brock Purdy when ISU won and lost, we can see that when ISU won, he tended to throw more passing yards and touchdowns. This means that Brock Purdy's performance has a positive impact on the performance of the ISU team. However, we must take a look at one outlier in the passing touchdowns boxplots. In this data, Brock Purdy threw 5 touchdowns, but the ISU team still loss. This most likely means that although he performed splendidly, the ISU team's defense must've had very bad performance.
+
+4. Explore more. You may in addition explore the 2018 data here. Raise a question that can be answered only by looking at two or more data frames. Then answer that question.
