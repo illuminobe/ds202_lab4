@@ -174,4 +174,4 @@ ggplot(distinct(correlation2, Name, .keep_all=TRUE), aes(x = Height, y = mean_yd
   geom_point(data = correlation2, aes(x = Height, y = Receiving_YDS), show.legend = TRUE, inherit.aes = FALSE) + geom_point(size = 7)
 ```
 
-From both of the plots, we can see that the taller players tend to achieve a higher receiving yards despite the outliers.
+From both of the plots, we can observe that the taller players tend to achieve a higher receiving yards despite the outliers.
