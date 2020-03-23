@@ -140,4 +140,38 @@ ggplot(brock, aes(x = Team_Record, y = Passing_TD)) + geom_boxplot() + labs(titl
 
 Since Brock Purdy is a quarterback, a player that typically holds the ball for the longest time, if his performance is good, then his team has a better chance of victory. Based on the boxplots that compared the passing yards and passing touchdowns of Brock Purdy when ISU won and lost, we can see that when ISU won, he tended to throw more passing yards and touchdowns. This means that Brock Purdy's performance has a positive impact on the performance of the ISU team. However, we must take a look at one outlier in the passing touchdowns boxplots. In this data, Brock Purdy threw 5 touchdowns, but the ISU team still loss. This most likely means that although he performed splendidly, the ISU team's defense must've had very bad performance.
 
-4. Explore more. You may in addition explore the 2018 data here. Raise a question that can be answered only by looking at two or more data frames. Then answer that question.
+### 4.) Explore more. You may in addition explore the 2018 data here. Raise a question that can be answered only by looking at two or more data frames. Then answer that question.
+### By comparing 2018 and 2019 data, will the height of a player influence the receiving yards?
+```{r}
+offense2 <- read_excel('cyclonesFootball2018.xlsx', sheet = 'Offensive')
+biography2 <- read_excel('cyclonesFootball2018.xlsx', sheet = 'Biography')
+
+offense2$Name %<>% factor
+offense2$Opponent_Opponent %<>% factor
+newCols1b = c('Rushing_ATT', 'Rushing_YDS', 'Rushing_TD','Receiving_REC',  'Receiving_YDS','Receiving_TD', 'Passing_CMP-ATT', 'Passing_YDS', 'Passing_TD', 'Passing_INT')
+offense2[, newCols1b] %<>% lapply(function(x) as.numeric(as.character(x)))
+offClean2 = offense2
+
+biography2$Name %<>% factor
+biography2$Position %<>% factor
+biography2[["Height"]] <- gsub('-', '.', biography2$Height) 
+newCols2b = c('Weight', 'Height')
+biography2[, newCols2b] %<>% lapply(function(x) as.numeric(as.character(x)))
+bioClean2 = biography2
+
+correlation = inner_join(bioClean, offClean, by = "Name") %>% 
+  select(Name, Height, Receiving_YDS) %>% 
+  group_by(Name) %>% 
+  mutate(mean_yds = mean(Receiving_YDS))
+ggplot(distinct(correlation, Name, .keep_all=TRUE), aes(x = Height, y = mean_yds, color = Name)) + ylab("Offensive Yards") +
+  geom_point(data = correlation, aes(x = Height, y = Receiving_YDS), show.legend = TRUE, inherit.aes = FALSE) + geom_point(size = 7)
+
+correlation2 = inner_join(bioClean2, offClean2, by = "Name") %>% 
+  select(Name, Height, Receiving_YDS) %>% 
+  group_by(Name) %>% 
+  mutate(mean_yds = mean(Receiving_YDS))
+ggplot(distinct(correlation2, Name, .keep_all=TRUE), aes(x = Height, y = mean_yds, color = Name)) + ylab("Offensive Yards") +
+  geom_point(data = correlation2, aes(x = Height, y = Receiving_YDS), show.legend = TRUE, inherit.aes = FALSE) + geom_point(size = 7)
+```
+
+From both of the plots, we can see that the taller players tend to achieve a higher receiving yards despite the outliers.
